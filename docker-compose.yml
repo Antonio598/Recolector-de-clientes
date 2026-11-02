@@ -6,8 +6,8 @@ services:
   web:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
       args:
+        APP: web
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     env_file: .env
@@ -23,7 +23,8 @@ services:
   worker:
     build:
       context: .
-      dockerfile: apps/worker/Dockerfile
+      args:
+        APP: worker
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0

@@ -27,7 +27,13 @@ pnpm --filter @growvibe/worker dev   # necesita REDIS_URL accesible
 
 ### Producción (Easypanel)
 
-Crear un servicio **Compose** apuntando a este repo (`docker-compose.yml`), pegar el `.env` en el panel y asignar dominios a `web:3000` y `evolution-api:8080`.
+Con servicios **App** (un solo `Dockerfile` en la raíz):
+
+- **Web:** variables del `.env` (sin `APP`, o `APP=web`), dominio al puerto 3000.
+- **Worker:** mismo repo y mismas variables + `APP=worker`, sin dominio.
+- **Redis:** servicio Redis de Easypanel; usar su URL interna en `REDIS_URL`.
+
+Alternativa: un servicio **Compose** con `docker-compose.yml` (incluye su propia Evolution API).
 `NEXT_PUBLIC_*` se incrustan en el build (build args), así que si cambian hay que reconstruir `web`.
 
 ## Comprobaciones de la Fase 1

@@ -4,7 +4,7 @@ Monorepo (pnpm) · `apps/web` (Next.js 15) · `apps/worker` (BullMQ) · `package
 
 ## Puesta en marcha
 
-1. `cp .env.example .env` y llena las variables (Supabase, `EVOLUTION_API_KEY`, `EVOLUTION_POSTGRES_PASSWORD`…).
+1. `cp .env.example .env` y llena las variables (`DATABASE_URL`, `REDIS_URL`, `APP_URL`…).
 2. `pnpm install`
 
 ### Base de datos (Postgres directo)
@@ -35,7 +35,6 @@ Con servicios **App** (un solo `Dockerfile` en la raíz):
 - **Redis:** servicio Redis de Easypanel; usar su URL interna en `REDIS_URL`.
 
 Alternativa: un servicio **Compose** con `docker-compose.yml` (incluye su propia Evolution API).
-`NEXT_PUBLIC_*` se incrustan en el build (build args), así que si cambian hay que reconstruir `web`.
 
 ## Comprobaciones de la Fase 1
 

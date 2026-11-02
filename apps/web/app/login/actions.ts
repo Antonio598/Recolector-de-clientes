@@ -25,6 +25,9 @@ export async function signIn(_prev: { error?: string } | undefined, formData: Fo
   if (error) {
     console.error("[login] error de Supabase:", error.status, error.code, error.message);
     if (error.code === "invalid_credentials") return { error: "Email o contraseña incorrectos" };
+    if (!error.status || /fetch failed/i.test(error.message)) {
+      return { error: "No se pudo conectar con Supabase. Revisa NEXT_PUBLIC_SUPABASE_URL y su certificado HTTPS." };
+    }
     if (error.status === 401 || /invalid authentication credentials|api key/i.test(error.message)) {
       return { error: "Supabase rechazó la API key: NEXT_PUBLIC_SUPABASE_ANON_KEY no coincide con la de tu Supabase." };
     }

@@ -1,22 +1,15 @@
 import { AlertTriangle } from "lucide-react";
-import { getSettings, listProfiles } from "@growvibe/db";
-import { createServiceClient } from "@growvibe/db/service";
+import { getDb, getSettings, listUsers } from "@growvibe/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
-import { supabaseServer } from "@/lib/supabase";
 import { SettingsForm } from "./settings-form";
 import { UsersSection } from "./users-section";
 
 export default async function SettingsPage() {
   const me = await requireRole("admin");
-  const db = await supabaseServer();
-  const [settings, profiles] = await Promise.all([getSettings(db), listProfiles(db)]);
-
-  // Los emails viven en auth.users: solo se leen con service role.
-  const { data: authUsers } = await createServiceClient().auth.admin.listUsers({ perPage: 200 });
-  const emails = new Map(authUsers?.users.map((u) => [u.id, u.email ?? ""]) ?? []);
-  const users = profiles.map((p) => ({ ...p, email: emails.get(p.id) ?? "" }));
+  const db = getDb();
+  const [settings, users] = await Promise.all([getSettings(db), listUsers(db)]);
 
   return (
     <>

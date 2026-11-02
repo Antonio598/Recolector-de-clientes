@@ -16,7 +16,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title={`Hola, ${user.full_name ?? "equipo"}`} description="Resumen de la actividad de hoy." />
+      <PageHeader title={`Hola, ${user.fullName ?? "equipo"}`} description="Resumen de la actividad de hoy." />
       {denied && (
         <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           No tienes permiso para ver esa sección.

@@ -1,48 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
+// El middleware corre en Edge (sin acceso a Postgres): solo revisa que exista la cookie.
+// La sesión se valida contra la base en el servidor (requireUser / requireRole).
+const SESSION_COOKIE = "gv_session";
 const PUBLIC_PREFIXES = ["/login", "/u/", "/api/webhooks/", "/api/health"];
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (toSet) => {
-          toSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    },
-  );
-
-  // Refresca la sesión (no quitar: mantiene vivas las cookies).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p));
+  const hasSession = request.cookies.has(SESSION_COOKIE);
 
-  if (!user && !isPublic) {
+  if (!hasSession && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
     return NextResponse.redirect(url);
   }
-  if (user && path === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
-  }
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

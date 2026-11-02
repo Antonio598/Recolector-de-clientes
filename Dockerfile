@@ -11,12 +11,7 @@ COPY . .
 
 # ───────────── web ─────────────
 FROM base AS build-web
-# NEXT_PUBLIC_* se incrustan en el bundle del navegador y del middleware en build.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
-    NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm install --frozen-lockfile --filter @growvibe/web...
 RUN pnpm --filter @growvibe/web build
 

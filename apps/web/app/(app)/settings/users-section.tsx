@@ -7,7 +7,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { createUser, setRole, type ActionResult } from "./actions";
 
-type User = { id: string; full_name: string | null; role: string; email: string };
+type User = { id: string; fullName: string | null; role: string; email: string };
 
 function notify(r: ActionResult) {
   if (!r) return;
@@ -34,7 +34,7 @@ export function UsersSection({ users, meId }: { users: User[]; meId: string }) {
         <TBody>
           {users.map((u) => (
             <TR key={u.id}>
-              <TD>{u.full_name ?? "—"}</TD>
+              <TD>{u.fullName ?? "—"}</TD>
               <TD className="text-slate-500">{u.email}</TD>
               <TD>
                 <Select

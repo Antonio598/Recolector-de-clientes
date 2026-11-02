@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { roleSchema, settingsSchema } from "@growvibe/core";
-import { createServiceClient } from "@growvibe/db/service";
-import { requireRole } from "@/lib/auth";
-import { supabaseServer } from "@/lib/supabase";
+import { createUser as insertUser, findUserByEmail, getDb, setUserRole, updateSettings } from "@growvibe/db";
+import { hashPassword, requireRole } from "@/lib/auth";
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string } | undefined;
 
@@ -25,10 +24,19 @@ export async function saveSettings(_prev: ActionResult, formData: FormData): Pro
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  // Con la sesión del admin: RLS confirma el permiso también en la base.
-  const db = await supabaseServer();
-  const { error } = await db.from("settings").update(parsed.data).eq("id", 1);
-  if (error) return { ok: false, error: error.message };
+  const s = parsed.data;
+  await updateSettings(getDb(), {
+    whatsappDailyLimit: s.whatsapp_daily_limit,
+    emailDailyLimit: s.email_daily_limit,
+    sendWindowStart: s.send_window_start,
+    sendWindowEnd: s.send_window_end,
+    sendDays: s.send_days,
+    minDelaySeconds: s.min_delay_seconds,
+    maxDelaySeconds: s.max_delay_seconds,
+    warmupEnabled: s.warmup_enabled,
+    senderSignature: s.sender_signature,
+    privacyUrl: s.privacy_url,
+  });
   revalidatePath("/settings");
   return { ok: true, message: "Ajustes guardados" };
 }
@@ -45,25 +53,16 @@ export async function createUser(_prev: ActionResult, formData: FormData): Promi
   const parsed = newUserSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
-  const admin = createServiceClient();
-  const { data, error } = await admin.auth.admin.createUser({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    email_confirm: true,
-    user_metadata: { full_name: parsed.data.full_name },
-  });
-  if (error || !data.user) {
-    // auth.users es compartido con otra app: si el email ya existe ahí,
-    // se le da acceso con el SQL de supabase/sql-editor/02_primer_admin.sql.
-    return { ok: false, error: error?.message ?? "No se pudo crear el usuario" };
+  const db = getDb();
+  if (await findUserByEmail(db, parsed.data.email)) {
+    return { ok: false, error: "Ya existe un usuario con ese email" };
   }
-
-  // Sin trigger: el perfil de GrowVibe se crea aquí de forma explícita.
-  const { error: profileError } = await admin
-    .from("profiles")
-    .insert({ id: data.user.id, full_name: parsed.data.full_name, role: parsed.data.role });
-  if (profileError) return { ok: false, error: profileError.message };
-
+  await insertUser(db, {
+    email: parsed.data.email.toLowerCase(),
+    fullName: parsed.data.full_name,
+    role: parsed.data.role,
+    passwordHash: await hashPassword(parsed.data.password),
+  });
   revalidatePath("/settings");
   return { ok: true, message: `Usuario ${parsed.data.email} creado` };
 }
@@ -74,9 +73,7 @@ export async function setRole(userId: string, role: string): Promise<ActionResul
   if (!parsedRole.success) return { ok: false, error: "Rol inválido" };
   if (userId === me.id) return { ok: false, error: "No puedes cambiar tu propio rol" };
 
-  const db = await supabaseServer();
-  const { error } = await db.from("profiles").update({ role: parsedRole.data }).eq("id", userId);
-  if (error) return { ok: false, error: error.message };
+  await setUserRole(getDb(), userId, parsedRole.data);
   revalidatePath("/settings");
   return { ok: true, message: "Rol actualizado" };
 }

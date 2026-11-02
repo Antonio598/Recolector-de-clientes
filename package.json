@@ -8,8 +8,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
-    "db:types": "supabase gen types typescript --local --schema growvibe > packages/db/src/types.ts"
+    "test": "pnpm -r --if-present test"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

@@ -40,22 +40,22 @@ export function SettingsForm({ settings: s }: { settings: Settings }) {
   return (
     <form action={action} className="grid gap-5 sm:grid-cols-2">
       <Field label="Límite diario de WhatsApp">
-        <Input name="whatsapp_daily_limit" type="number" min={0} defaultValue={s.whatsapp_daily_limit} required />
+        <Input name="whatsapp_daily_limit" type="number" min={0} defaultValue={s.whatsappDailyLimit} required />
       </Field>
       <Field label="Límite diario de email">
-        <Input name="email_daily_limit" type="number" min={0} defaultValue={s.email_daily_limit} required />
+        <Input name="email_daily_limit" type="number" min={0} defaultValue={s.emailDailyLimit} required />
       </Field>
       <Field label="Inicio de ventana">
-        <Input name="send_window_start" type="time" defaultValue={s.send_window_start.slice(0, 5)} required />
+        <Input name="send_window_start" type="time" defaultValue={s.sendWindowStart.slice(0, 5)} required />
       </Field>
       <Field label="Fin de ventana">
-        <Input name="send_window_end" type="time" defaultValue={s.send_window_end.slice(0, 5)} required />
+        <Input name="send_window_end" type="time" defaultValue={s.sendWindowEnd.slice(0, 5)} required />
       </Field>
       <Field label="Retraso mínimo entre mensajes (s)">
-        <Input name="min_delay_seconds" type="number" min={0} defaultValue={s.min_delay_seconds} required />
+        <Input name="min_delay_seconds" type="number" min={0} defaultValue={s.minDelaySeconds} required />
       </Field>
       <Field label="Retraso máximo entre mensajes (s)">
-        <Input name="max_delay_seconds" type="number" min={0} defaultValue={s.max_delay_seconds} required />
+        <Input name="max_delay_seconds" type="number" min={0} defaultValue={s.maxDelaySeconds} required />
       </Field>
 
       <fieldset className="sm:col-span-2">
@@ -70,7 +70,7 @@ export function SettingsForm({ settings: s }: { settings: Settings }) {
                 type="checkbox"
                 name="send_days"
                 value={value}
-                defaultChecked={s.send_days.includes(value)}
+                defaultChecked={s.sendDays.includes(value)}
                 className="accent-brand-600"
               />
               {label}
@@ -80,7 +80,7 @@ export function SettingsForm({ settings: s }: { settings: Settings }) {
       </fieldset>
 
       <label className="flex items-start gap-2 text-sm sm:col-span-2">
-        <input type="checkbox" name="warmup_enabled" defaultChecked={s.warmup_enabled} className="mt-0.5 accent-brand-600" />
+        <input type="checkbox" name="warmup_enabled" defaultChecked={s.warmupEnabled} className="mt-0.5 accent-brand-600" />
         <span>
           <span className="font-medium">Calentamiento de WhatsApp</span>
           <span className="block text-slate-500">10 mensajes el día 1 y +5 por día hábil hasta el límite.</span>
@@ -89,12 +89,12 @@ export function SettingsForm({ settings: s }: { settings: Settings }) {
 
       <div className="sm:col-span-2">
         <Field label="Firma del remitente">
-          <Textarea name="sender_signature" rows={3} defaultValue={s.sender_signature ?? ""} />
+          <Textarea name="sender_signature" rows={3} defaultValue={s.senderSignature ?? ""} />
         </Field>
       </div>
       <div className="sm:col-span-2">
         <Field label="URL del aviso de privacidad (LFPDPPP)" hint="Se incluye en los emails y en la página de baja.">
-          <Input name="privacy_url" type="url" placeholder="https://…" defaultValue={s.privacy_url ?? ""} />
+          <Input name="privacy_url" type="url" placeholder="https://…" defaultValue={s.privacyUrl ?? ""} />
         </Field>
       </div>
 

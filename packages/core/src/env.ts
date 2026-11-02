@@ -1,21 +1,12 @@
 import { z } from "zod";
 
 /**
- * Variables públicas (disponibles en el navegador).
- * Next.js solo inyecta NEXT_PUBLIC_* si se leen de forma literal, por eso
- * `publicEnv()` las lee una por una.
- */
-export const publicEnvSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-});
-
-/**
  * Variables de servidor (web + worker). Las integraciones que llegan en fases
  * posteriores son opcionales por ahora; se vuelven obligatorias en su fase.
  */
-export const serverEnvSchema = publicEnvSchema.extend({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+export const serverEnvSchema = z.object({
+  // Postgres directo (esquema "growvibe"), igual que la otra app del servidor.
+  DATABASE_URL: z.string().min(1, "DATABASE_URL es obligatoria"),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
 
   // Fase 2
@@ -39,33 +30,18 @@ export const serverEnvSchema = publicEnvSchema.extend({
   TZ: z.string().default("America/Mexico_City"),
 });
 
-export type PublicEnv = z.infer<typeof publicEnvSchema>;
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
-function format(error: z.ZodError) {
-  return error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
-}
+let cached: ServerEnv | undefined;
 
-let cachedServer: ServerEnv | undefined;
-
-/** Valida y devuelve el entorno de servidor. Lanza error claro si falta algo. */
+/** Valida y devuelve el entorno de servidor. Lanza un error claro si falta algo. */
 export function serverEnv(): ServerEnv {
-  if (cachedServer) return cachedServer;
+  if (cached) return cached;
   const parsed = serverEnvSchema.safeParse(process.env);
   if (!parsed.success) {
-    throw new Error(`Variables de entorno inválidas:\n${format(parsed.error)}`);
+    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new Error(`Variables de entorno inválidas:\n${issues}`);
   }
-  cachedServer = parsed.data;
-  return cachedServer;
-}
-
-export function publicEnv(): PublicEnv {
-  const parsed = publicEnvSchema.safeParse({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  });
-  if (!parsed.success) {
-    throw new Error(`Variables públicas inválidas:\n${format(parsed.error)}`);
-  }
-  return parsed.data;
+  cached = parsed.data;
+  return cached;
 }

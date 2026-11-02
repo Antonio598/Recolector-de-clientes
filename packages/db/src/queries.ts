@@ -1,31 +1,68 @@
-import type { SupabaseClient, User } from "@supabase/supabase-js";
-import type { Database, Tables } from "./types";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
+import type { Db } from "./client";
+import { profiles, sessions, settings, type Profile, type Settings } from "./schema";
 
-export type Db = SupabaseClient<Database, "growvibe">;
-export type Profile = Tables<"profiles">;
-export type Settings = Tables<"settings">;
+export type PublicUser = Omit<Profile, "passwordHash">;
 
-/**
- * Sesión actual. `profile` es null si el usuario existe en Supabase Auth
- * (por ejemplo, es de otra app que comparte la base) pero no tiene acceso a GrowVibe.
- */
-export async function getSession(
+const publicUserColumns = {
+  id: profiles.id,
+  email: profiles.email,
+  fullName: profiles.fullName,
+  role: profiles.role,
+  createdAt: profiles.createdAt,
+};
+
+export async function findUserByEmail(db: Db, email: string): Promise<Profile | undefined> {
+  const [row] = await db
+    .select()
+    .from(profiles)
+    .where(sql`lower(${profiles.email}) = lower(${email})`);
+  return row;
+}
+
+export async function listUsers(db: Db): Promise<PublicUser[]> {
+  return db.select(publicUserColumns).from(profiles).orderBy(asc(profiles.fullName));
+}
+
+export async function createUser(
   db: Db,
-): Promise<{ user: User; profile: (Profile & { email: string | null }) | null } | null> {
-  const {
-    data: { user },
-  } = await db.auth.getUser();
-  if (!user) return null;
-  const { data } = await db.from("profiles").select("*").eq("id", user.id).maybeSingle();
-  return { user, profile: data ? { ...data, email: user.email ?? null } : null };
+  data: { email: string; passwordHash: string; fullName: string; role: "admin" | "vendedor" },
+): Promise<PublicUser> {
+  const [row] = await db.insert(profiles).values(data).returning(publicUserColumns);
+  return row!;
 }
 
-export async function getSettings(db: Db): Promise<Settings | null> {
-  const { data } = await db.from("settings").select("*").eq("id", 1).single();
-  return data;
+export async function setUserRole(db: Db, id: string, role: "admin" | "vendedor") {
+  await db.update(profiles).set({ role }).where(eq(profiles.id, id));
 }
 
-export async function listProfiles(db: Db): Promise<Profile[]> {
-  const { data } = await db.from("profiles").select("*").order("full_name");
-  return data ?? [];
+// ───────────── sesiones ─────────────
+
+export async function insertSession(db: Db, id: string, userId: string, expiresAt: Date) {
+  await db.insert(sessions).values({ id, userId, expiresAt });
+}
+
+/** Usuario dueño de una sesión vigente, o undefined. */
+export async function getSessionUser(db: Db, sessionId: string): Promise<PublicUser | undefined> {
+  const [row] = await db
+    .select(publicUserColumns)
+    .from(sessions)
+    .innerJoin(profiles, eq(profiles.id, sessions.userId))
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())));
+  return row;
+}
+
+export async function deleteSession(db: Db, sessionId: string) {
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
+}
+
+// ───────────── ajustes ─────────────
+
+export async function getSettings(db: Db): Promise<Settings | undefined> {
+  const [row] = await db.select().from(settings).where(eq(settings.id, 1));
+  return row;
+}
+
+export async function updateSettings(db: Db, data: Omit<Settings, "id">) {
+  await db.update(settings).set(data).where(eq(settings.id, 1));
 }

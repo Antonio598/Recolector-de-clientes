@@ -7,16 +7,17 @@ Monorepo (pnpm) · `apps/web` (Next.js 15) · `apps/worker` (BullMQ) · `package
 1. `cp .env.example .env` y llena las variables (Supabase, `EVOLUTION_API_KEY`, `EVOLUTION_POSTGRES_PASSWORD`…).
 2. `pnpm install`
 
-### Base de datos (Supabase CLI)
+### Base de datos (Postgres directo)
 
-- **Local (requiere Docker):** `npx supabase start` → aplica migraciones y `seed.sql`.
-  Usuarios de prueba: `admin@growvibe.test` / `vendedor@growvibe.test`, contraseña `growvibe123`.
-- **Supabase compartido (Easypanel):** todo vive en el esquema `growvibe` (no se toca `public`).
-  1. Pegar `supabase/migrations/20261102000000_init.sql` en el SQL Editor y ejecutar.
-  2. Agregar `growvibe` a `PGRST_DB_SCHEMAS` del servicio de Supabase y reiniciar `rest`.
-  3. Crear el usuario en Authentication y ejecutar `supabase/sql-editor/02_primer_admin.sql`.
-  El resto de usuarios se crean desde `/settings`. Usuarios de otras apps sin perfil en `growvibe.profiles` ven "sin acceso".
-- Tipos: `pnpm db:types` (reemplaza el stub de `packages/db/src/types.ts`).
+La app se conecta a Postgres con `DATABASE_URL` (como la otra app del servidor). Todo vive en el esquema `growvibe`.
+No se usa la API ni el login de Supabase: el login es propio (bcrypt + cookie de sesión) y los permisos por rol se aplican en el servidor.
+
+Pegar en el SQL Editor, en orden, los archivos de `supabase/migrations/`:
+
+1. `20261102000000_init.sql` — tablas.
+2. `20261103000000_own_auth.sql` — email/contraseña en `growvibe.profiles` y tabla `growvibe.sessions`.
+
+Los usuarios nuevos se crean desde `/settings` (solo admin).
 
 ### Desarrollo
 
@@ -29,7 +30,7 @@ pnpm --filter @growvibe/worker dev   # necesita REDIS_URL accesible
 
 Con servicios **App** (un solo `Dockerfile` en la raíz):
 
-- **Web:** variables del `.env` (sin `APP`, o `APP=web`), dominio al puerto 3000.
+- **Web:** variables del `.env` (`DATABASE_URL`, `REDIS_URL`, `APP_URL`…; sin `APP` o `APP=web`), dominio al puerto 3000.
 - **Worker:** mismo repo y mismas variables + `APP=worker`, sin dominio.
 - **Redis:** servicio Redis de Easypanel; usar su URL interna en `REDIS_URL`.
 

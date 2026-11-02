@@ -7,10 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/browser.ts",
-    "./server": "./src/server.ts",
-    "./service": "./src/service.ts",
-    "./types": "./src/types.ts"
+    "./schema": "./src/schema.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -18,7 +15,10 @@
   },
   "dependencies": {
     "@growvibe/core": "workspace:*",
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.47.10"
+    "drizzle-orm": "^0.44.7",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
   }
 }

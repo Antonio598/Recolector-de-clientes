@@ -1,0 +1,30 @@
+# Configuración mínima del Supabase CLI; el resto usa los valores por defecto.
+project_id = "growvibe-crm"
+
+[api]
+port = 54321
+schemas = ["public", "graphql_public", "growvibe"]
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+port = 54323
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+enable_signup = false
+
+# El registro público está cerrado: el admin crea usuarios desde /settings (service role).
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[realtime]
+enabled = true

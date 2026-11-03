@@ -1,6 +1,6 @@
 import "server-only";
 import { Queue, type JobsOptions } from "bullmq";
-import { defaultJobOptions, redisConnection, type QueueName } from "@growvibe/core";
+import { defaultJobOptions, redisConnection, redisKeys, type QueueName, type SendChannel } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
 
 // La web nunca llama a Places/Claude/Evolution/Brevo: solo encola y lee el estado de los jobs.
@@ -57,4 +57,20 @@ export async function getJobInfo(queue: QueueName, jobId: string): Promise<JobIn
     console.error("[queue] no se pudo leer el job:", e);
     return { state: "redis-error", progress: null, attemptsMade: 0, maxAttempts: 0, failedReason: "No hay conexión con Redis" };
   }
+}
+
+// ───────────── estado de los canales de envío (Redis, compartido con el worker) ─────────────
+export async function channelRuntime(channel: SendChannel): Promise<{ pausedReason: string | null; nextAt: number | null }> {
+  try {
+    const r = await getQueue("scheduler").client;
+    const [paused, next] = await Promise.all([r.get(redisKeys.pause(channel)), r.get(redisKeys.nextAt(channel))]);
+    return { pausedReason: paused, nextAt: next ? Number(next) : null };
+  } catch {
+    return { pausedReason: "Sin conexión con Redis", nextAt: null };
+  }
+}
+
+export async function resumeChannel(channel: SendChannel) {
+  const r = await getQueue("scheduler").client;
+  await r.del(redisKeys.pause(channel));
 }

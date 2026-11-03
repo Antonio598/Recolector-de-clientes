@@ -41,3 +41,28 @@ export async function checkWhatsappNumbers(
   }
   return out;
 }
+
+/** Envía un texto. `number` en dígitos internacionales (sin +). `delayMs` simula escritura. Devuelve el id del mensaje. */
+export async function sendWhatsappText(
+  cfg: EvolutionConfig,
+  number: string,
+  text: string,
+  delayMs: number,
+): Promise<string | null> {
+  const data = await call(cfg, "POST", `/message/sendText/${encodeURIComponent(cfg.instance)}`, {
+    number,
+    text,
+    delay: delayMs,
+  });
+  const parsed = z.object({ key: z.object({ id: z.string() }).partial().optional() }).passthrough().safeParse(data);
+  return parsed.success ? (parsed.data.key?.id ?? null) : null;
+}
+
+/** QR para vincular el número (base64 data URL) o null si ya está conectado. */
+export async function connectInstance(cfg: EvolutionConfig): Promise<{ qr: string | null; state?: string }> {
+  const data = await call(cfg, "GET", `/instance/connect/${encodeURIComponent(cfg.instance)}`);
+  const qr = z.object({ base64: z.string() }).safeParse(data);
+  if (qr.success) return { qr: qr.data.base64 };
+  const st = z.object({ instance: z.object({ state: z.string() }) }).safeParse(data);
+  return { qr: null, state: st.success ? st.data.instance.state : undefined };
+}

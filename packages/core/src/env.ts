@@ -24,6 +24,8 @@ export const serverEnvSchema = z.object({
   BREVO_SENDER_EMAIL: z.string().email().optional().or(z.literal("")),
   BREVO_SENDER_NAME: z.string().default("GrowVibe"),
   BREVO_WEBHOOK_SECRET: z.string().optional(),
+  /** Buzón de respuestas (subdominio con inbound parsing de Brevo, Fase 5). */
+  BREVO_REPLY_TO: z.string().email().optional().or(z.literal("")),
 
   APP_URL: z.string().url().default("http://localhost:3000"),
   UNSUBSCRIBE_SECRET: z.string().optional(),

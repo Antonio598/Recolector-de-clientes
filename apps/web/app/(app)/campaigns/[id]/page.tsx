@@ -21,6 +21,7 @@ import { enrichAction, replanAction, retryRunAction } from "../actions";
 import { LeadsTable, type LeadFilter } from "./leads-table";
 import { NichesEditor } from "./niches-editor";
 import { QualifyPanel } from "./qualify-panel";
+import { SendPanel } from "./send-panel";
 
 const isFailed = (j: JobInfo | null) => j?.state === "failed" || j?.state === "redis-error";
 const isRunning = (j: JobInfo | null) =>
@@ -185,6 +186,8 @@ async function LeadsSection({ campaign, giro, estado }: { campaign: Campaign; gi
           </CardContent>
         </Card>
       )}
+
+      {!searching && <SendPanel campaign={campaign} />}
 
       {leads.length > 0 && (
         <Card>

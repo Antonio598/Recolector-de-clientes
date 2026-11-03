@@ -12,7 +12,7 @@ import {
   runJobId,
   type Niche,
 } from "@growvibe/core";
-import { createCampaign, getCampaign, getDb, updateCampaign } from "@growvibe/db";
+import { createCampaign, getCampaign, getDb, setCampaignStatus, updateCampaign } from "@growvibe/db";
 import { requireRole } from "@/lib/auth";
 import { enqueueUnique } from "@/lib/queue";
 
@@ -98,4 +98,23 @@ export async function qualifyAction(campaignId: string, _prev: FormState, formDa
   }
   revalidatePath(`/campaigns/${campaignId}`);
   return undefined;
+}
+
+/** Lanzar: el scheduler empieza a enviar los mensajes en cola de los leads calificados. */
+export async function launchAction(campaignId: string) {
+  await requireRole("admin");
+  const db = getDb();
+  const campaign = await getCampaign(db, campaignId);
+  if (!campaign || !["lista", "pausada"].includes(campaign.status)) return;
+  await setCampaignStatus(db, campaignId, "enviando");
+  revalidatePath(`/campaigns/${campaignId}`);
+}
+
+export async function pauseAction(campaignId: string) {
+  await requireRole("admin");
+  const db = getDb();
+  const campaign = await getCampaign(db, campaignId);
+  if (!campaign || campaign.status !== "enviando") return;
+  await setCampaignStatus(db, campaignId, "pausada");
+  revalidatePath(`/campaigns/${campaignId}`);
 }

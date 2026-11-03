@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // El middleware corre en Edge (sin acceso a Postgres): solo revisa que exista la cookie.
 // La sesión se valida contra la base en el servidor (requireUser / requireRole).
 const SESSION_COOKIE = "gv_session";
-const PUBLIC_PREFIXES = ["/login", "/u/", "/api/webhooks/", "/api/health"];
+const PUBLIC_PREFIXES = ["/login", "/u/", "/api/unsubscribe/", "/api/webhooks/", "/api/health"];
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;

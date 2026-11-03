@@ -5,6 +5,7 @@ export const QUEUES = [
   "send-whatsapp",
   "send-email",
   "classify-reply",
+  "scheduler",
 ] as const;
 
 export type QueueName = (typeof QUEUES)[number];

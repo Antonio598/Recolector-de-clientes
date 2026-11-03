@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./env": "./src/env.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./unsubscribe": "./src/unsubscribe.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

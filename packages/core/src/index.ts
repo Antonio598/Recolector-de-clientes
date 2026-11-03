@@ -2,6 +2,7 @@ export * from "./queues";
 export * from "./geo";
 export * from "./contact";
 export * from "./schedule";
+export * from "./webhooks";
 export * from "./schemas/settings";
 export * from "./schemas/campaign";
 export * from "./schemas/messages";

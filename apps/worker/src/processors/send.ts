@@ -22,12 +22,14 @@ async function prepare(job: Job<SendJobData>) {
   const db = getDb();
   const ctx = await getSendContext(db, job.data.messageId);
   if (!ctx || ctx.message.status !== "en_cola") return null;
-  if (ctx.campaign.status !== "enviando") {
+  // "reply" = respuesta manual del vendedor: no depende del estado de la campaña, solo de las bajas.
+  const isReply = job.name === "reply";
+  if (!isReply && ctx.campaign.status !== "enviando") {
     // La campaña se pausó mientras esperaba: vuelve a la cola sin programar.
     await unscheduleMessage(db, job.data.messageId);
     return null;
   }
-  const block = await contactBlockReason(db, ctx.lead.id, ctx.lead.phoneE164, ctx.lead.email);
+  const block = await contactBlockReason(db, ctx.lead.id, ctx.lead.phoneE164, ctx.lead.email, { onlyOptOut: isReply });
   if (block) {
     await cancelMessage(db, ctx.message.id, ctx.lead.id, block);
     return null;

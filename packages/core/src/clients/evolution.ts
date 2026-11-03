@@ -66,3 +66,20 @@ export async function connectInstance(cfg: EvolutionConfig): Promise<{ qr: strin
   const st = z.object({ instance: z.object({ state: z.string() }) }).safeParse(data);
   return { qr: null, state: st.success ? st.data.instance.state : undefined };
 }
+
+/** Apunta el webhook de la instancia a GrowVibe (reemplaza el anterior). */
+export async function setWebhook(cfg: EvolutionConfig, url: string) {
+  return call(cfg, "POST", `/webhook/set/${encodeURIComponent(cfg.instance)}`, {
+    webhook: {
+      enabled: true,
+      url,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"],
+    },
+  });
+}
+
+export async function findWebhook(cfg: EvolutionConfig): Promise<{ url?: string; enabled?: boolean; events?: string[] } | null> {
+  return call(cfg, "GET", `/webhook/find/${encodeURIComponent(cfg.instance)}`);
+}

@@ -21,7 +21,7 @@ export async function nextQueuedMessage(db: Db, channel: Channel) {
         eq(messages.channel, channel),
         eq(messages.direction, "out"),
         eq(messages.status, "en_cola"),
-        eq(leads.status, "calificado"),
+        inArray(leads.status, ["calificado", "contactado"]),
         channel === "whatsapp" ? eq(leads.hasWhatsapp, true) : sql`${leads.email} is not null`,
         or(isNull(messages.scheduledFor), lt(messages.scheduledFor, sql`now() - interval '30 minutes'`)),
       ),
@@ -73,6 +73,7 @@ export async function contactBlockReason(
   leadId: string,
   phone: string | null,
   email: string | null,
+  opts: { onlyOptOut?: boolean } = {},
 ): Promise<string | null> {
   const lowerEmail = email?.toLowerCase() ?? null;
   const oo = await db
@@ -86,6 +87,7 @@ export async function contactBlockReason(
     )
     .limit(1);
   if (oo.length) return "Está en la lista de bajas";
+  if (opts.onlyOptOut) return null;
 
   const other = await db
     .select({ id: messages.id })
@@ -176,4 +178,16 @@ export async function campaignSendStats(db: Db, campaignId: string) {
 
 export async function listOptOuts(db: Db, limit = 100) {
   return db.select().from(optOuts).orderBy(desc(optOuts.createdAt)).limit(limit);
+}
+
+/** % de rebotes duros de email en los últimos 7 días (sobre enviados). null si hay menos de 20 envíos. */
+export async function emailHardBounceRate(db: Db): Promise<number | null> {
+  const [row] = await db
+    .select({
+      sent: sql<number>`(select count(*)::int from ${messages} where ${messages.channel} = 'email' and ${messages.direction} = 'out' and ${messages.sentAt} > now() - interval '7 days')`,
+      bounced: sql<number>`(select count(*)::int from ${optOuts} where ${optOuts.reason} = 'Rebote duro de email' and ${optOuts.createdAt} > now() - interval '7 days')`,
+    })
+    .from(sql`(select 1) x`);
+  if (!row || row.sent < 20) return null;
+  return row.bounced / row.sent;
 }

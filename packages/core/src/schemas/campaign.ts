@@ -56,3 +56,7 @@ export const qualifyJobId = (campaignId: string) => `qualify-${campaignId}`;
 
 /** Costo aproximado por lead de qualify_and_write (Sonnet 5.5, effort medium). */
 export const QUALIFY_USD_PER_LEAD = 0.01;
+
+// ───────────── respuestas ─────────────
+export type ClassifyJobData = { messageId: string };
+export const classifyJobId = (messageId: string) => `classify-${messageId}`;

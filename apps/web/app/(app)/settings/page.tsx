@@ -1,13 +1,14 @@
 import { AlertTriangle } from "lucide-react";
 import type { SendChannel } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
-import { connectionState } from "@growvibe/core/server";
+import { connectionState, findWebhook } from "@growvibe/core/server";
 import { getDb, getSettings, listOptOuts, listUsers } from "@growvibe/db";
 import { Button } from "@/components/ui/button";
 import { channelRuntime } from "@/lib/queue";
 import { resumeChannelAction } from "./channel-actions";
 import { OptOutForm } from "./opt-out-form";
 import { WhatsappQr } from "./whatsapp-qr";
+import { WebhookButton } from "./webhook-button";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
@@ -30,6 +31,10 @@ export default async function SettingsPage() {
         )
       : Promise.resolve("sin configurar"),
   ]);
+  const webhook = env.EVOLUTION_API_KEY
+    ? await findWebhook({ url: env.EVOLUTION_API_URL, apiKey: env.EVOLUTION_API_KEY, instance: env.EVOLUTION_INSTANCE }).catch(() => null)
+    : null;
+  const webhookOk = !!webhook?.url?.includes("/api/webhooks/evolution/") && webhook.enabled !== false;
   const brevoOk = !!(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL && env.UNSUBSCRIBE_SECRET);
 
   return (
@@ -63,6 +68,17 @@ export default async function SettingsPage() {
               </span>
             </p>
             <PauseBanner channel="whatsapp" reason={waRt.pausedReason} />
+            <p>
+              Respuestas:{" "}
+              {webhookOk ? (
+                <span className="font-medium text-brand-700">webhook apuntando a GrowVibe</span>
+              ) : (
+                <span className="font-medium text-amber-700">
+                  el webhook apunta a {webhook?.url ? new URL(webhook.url).host : "ningún lado"}
+                </span>
+              )}
+            </p>
+            {!webhookOk && <WebhookButton />}
             <WhatsappQr />
           </CardContent>
         </Card>

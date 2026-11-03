@@ -74,3 +74,10 @@ export async function resumeChannel(channel: SendChannel) {
   const r = await getQueue("scheduler").client;
   await r.del(redisKeys.pause(channel));
 }
+
+export async function pauseChannel(channel: SendChannel, reason: string) {
+  const r = await getQueue("scheduler").client;
+  if (!(await r.get(redisKeys.pause(channel)))) {
+    await r.set(redisKeys.pause(channel), `${reason} (${new Date().toISOString()})`);
+  }
+}

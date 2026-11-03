@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { MessageEditor } from "./message-editor";
+import { ReplyBox } from "@/components/reply-box";
+import { Button } from "@/components/ui/button";
+import { takeLeadAction } from "../../inbox/actions";
 
 const EVENT_LABELS: Record<string, string> = {
   creado: "Lead creado",
@@ -14,6 +17,10 @@ const EVENT_LABELS: Record<string, string> = {
   mensaje_editado: "Mensaje editado",
   enviado: "Mensaje enviado",
   respuesta: "Respondió",
+  clasificado: "Respuesta clasificada",
+  respuesta_enviada: "Le respondimos",
+  seguimiento: "Seguimiento en cola",
+  cancelado: "Envío cancelado",
   asignado: "Asignado",
   baja: "Se dio de baja",
   error: "Error",
@@ -118,15 +125,52 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                 {lead.status === "nuevo" ? "Aún no se califica: los mensajes se generan al calificar con IA." : "Sin mensajes."}
               </p>
             )}
-            {messages.map((m) => (
-              <div key={m.id} className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{m.channel === "whatsapp" ? "WhatsApp" : "Email"}</span>
-                  <Badge>{m.direction === "out" ? m.status.replace("_", " ") : "recibido"}</Badge>
+            {messages.map((m) =>
+              m.direction === "in" ? (
+                <div key={m.id} className="flex flex-col gap-1 self-start rounded-lg bg-slate-100 p-3 text-sm sm:max-w-[85%]">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="font-medium text-slate-700">{lead.name}</span> ·{" "}
+                    {m.channel === "whatsapp" ? "WhatsApp" : "Email"}
+                    {m.classification && <Badge>{m.classification.replace("_", " ")}</Badge>}
+                  </div>
+                  {m.subject && <p className="font-medium">{m.subject}</p>}
+                  <p className="whitespace-pre-wrap">{m.body}</p>
+                  <p className="text-xs text-slate-400">
+                    {m.createdAt?.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short", timeZone: "America/Mexico_City" })}
+                  </p>
                 </div>
-                <MessageEditor message={m} canEdit={me.role === "admin"} />
+              ) : (
+                <div key={m.id} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{m.channel === "whatsapp" ? "WhatsApp" : "Email"}</span>
+                    <Badge>{m.status.replace("_", " ")}</Badge>
+                    {m.sentAt && (
+                      <span className="text-xs text-slate-400">
+                        {m.sentAt.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short", timeZone: "America/Mexico_City" })}
+                      </span>
+                    )}
+                  </div>
+                  <MessageEditor message={m} canEdit={me.role === "admin"} />
+                </div>
+              ),
+            )}
+            {lead.status !== "baja" && messages.some((m) => m.direction === "in") && (
+              <div className="border-t border-slate-200 pt-4">
+                {me.role === "admin" || lead.assignedTo === me.id ? (
+                  <ReplyBox
+                    leadId={lead.id}
+                    defaultChannel={[...messages].reverse().find((m) => m.direction === "in")?.channel ?? "whatsapp"}
+                    channels={[...(lead.hasWhatsapp ? (["whatsapp"] as const) : []), ...(lead.email ? (["email"] as const) : [])]}
+                  />
+                ) : !lead.assignedTo ? (
+                  <form action={takeLeadAction.bind(null, lead.id)}>
+                    <Button size="sm" variant="outline">Tomar lead</Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-slate-500">Este lead está asignado a otro vendedor.</p>
+                )}
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>

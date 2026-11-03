@@ -3,6 +3,7 @@ import { QUEUES, redisConnection, type QueueName } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
 import { enrichProcessor } from "./processors/enrich";
 import { qualifyProcessor } from "./processors/qualify";
+import { classifyProcessor, followUpProcessor } from "./processors/replies";
 import { schedulerProcessor } from "./processors/scheduler";
 import { searchProcessor } from "./processors/search";
 import { sendEmailProcessor, sendWhatsappProcessor } from "./processors/send";
@@ -11,24 +12,20 @@ import { getQueue } from "./lib";
 const env = serverEnv();
 const connection = redisConnection(env.REDIS_URL);
 
-const pending = async (job: Job) => {
-  console.log(`[${job.queueName}] job ${job.id} recibido (sin procesador aún)`);
-  return { skipped: true };
-};
-
-/** Procesador por cola. Las que faltan se implementan en las fases 3-5. */
+/** Procesador por cola. */
 const processors: Record<QueueName, (job: Job) => Promise<unknown>> = {
   search: searchProcessor,
   enrich: enrichProcessor,
   "ai-qualify": qualifyProcessor,
   "send-whatsapp": sendWhatsappProcessor,
   "send-email": sendEmailProcessor,
-  "classify-reply": pending,
-  scheduler: schedulerProcessor,
+  "classify-reply": classifyProcessor,
+  // La cola scheduler lleva dos jobs recurrentes: el tick de envíos y los seguimientos.
+  scheduler: (job: Job) => (job.name === "followups" ? followUpProcessor() : schedulerProcessor()),
 };
 
 const workers = QUEUES.map((name) => {
-  const w = new Worker(name, processors[name], { connection, concurrency: name === "search" || name === "enrich" ? 2 : 1 });
+  const w = new Worker(name, processors[name], { connection, concurrency: name === "search" || name === "enrich" || name === "classify-reply" ? 2 : 1 });
   if (name !== "scheduler") w.on("completed", (job) => console.log(`[${name}] ${job.name} ${job.id} listo`));
   w.on("failed", (job, err) =>
     console.error(`[${name}] ${job?.name} ${job?.id} falló (intento ${job?.attemptsMade}):`, err.message),
@@ -44,6 +41,12 @@ await getQueue("scheduler").upsertJobScheduler(
   "send-tick",
   { every: 20_000 },
   { name: "tick", data: {}, opts: { attempts: 1, removeOnComplete: true, removeOnFail: 50 } },
+);
+// Seguimientos a 3 días hábiles: revisa cada hora.
+await getQueue("scheduler").upsertJobScheduler(
+  "followups-hourly",
+  { every: 60 * 60_000 },
+  { name: "followups", data: {}, opts: { attempts: 1, removeOnComplete: 20, removeOnFail: 50 } },
 );
 console.log(`[worker] conectado a Redis (${connection.host}:${connection.port}); colas: ${QUEUES.join(", ")}`);
 

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Job } from "bullmq";
 import {
+  enrichJobId,
   splitRect,
   type QueryItem,
   type Rect,
@@ -10,18 +11,13 @@ import {
 import { serverEnv } from "@growvibe/core/env";
 import { geocodeZone, planSearch, searchText, type Place } from "@growvibe/core/server";
 import { getCampaign, getDb, insertLeads, updateCampaign, type NewLead } from "@growvibe/db";
+import { enqueueUnique, requireEnv } from "../lib";
 
 /** Tope de llamadas a Places por campaña (costo). ~$0.035 c/u con este field mask. */
 const MAX_REQUESTS_PER_CAMPAIGN = 300;
 const MAX_PAGES = 3;
 const MAX_CELL_KM = 10;
 const MAX_CELLS = 16;
-
-function requireKey(name: "GOOGLE_MAPS_API_KEY" | "ANTHROPIC_API_KEY") {
-  const value = serverEnv()[name];
-  if (!value) throw new Error(`Falta la variable ${name} en el worker`);
-  return value;
-}
 
 /** Paso 2 + 3: Claude propone giros/búsquedas y Geocoding fija la zona. Queda en borrador para revisión. */
 async function plan(job: Job<SearchJobData>) {
@@ -30,10 +26,10 @@ async function plan(job: Job<SearchJobData>) {
   if (!campaign) return { skipped: "campaña no existe" };
 
   const env = serverEnv();
-  const claude = new Anthropic({ apiKey: requireKey("ANTHROPIC_API_KEY") });
+  const claude = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
   const [niches, geo] = await Promise.all([
     planSearch(claude, env.CLAUDE_MODEL_GENERATE, { service: campaign.service, zone: campaign.zone }),
-    geocodeZone(requireKey("GOOGLE_MAPS_API_KEY"), campaign.zone),
+    geocodeZone(requireEnv("GOOGLE_MAPS_API_KEY"), campaign.zone),
   ]);
 
   await updateCampaign(db, campaign.id, {
@@ -73,7 +69,7 @@ async function run(job: Job<SearchJobData>) {
   const campaign = await getCampaign(db, job.data.campaignId);
   if (!campaign) return { skipped: "campaña no existe" };
 
-  const apiKey = requireKey("GOOGLE_MAPS_API_KEY");
+  const apiKey = requireEnv("GOOGLE_MAPS_API_KEY");
   const queries = (campaign.queries ?? []) as QueryItem[];
   const bounds = campaign.zoneBounds as Rect | null;
   if (!bounds || queries.length === 0) throw new Error("La campaña no tiene zona o búsquedas confirmadas");
@@ -107,7 +103,8 @@ async function run(job: Job<SearchJobData>) {
     if (progress.truncated) break;
   }
 
-  await updateCampaign(db, campaign.id, { status: "lista" });
+  // Sigue el enriquecimiento (WhatsApp, emails, duplicados); al terminar, la campaña pasa a "lista".
+  await enqueueUnique("enrich", "enrich", { campaignId: campaign.id }, enrichJobId(campaign.id));
   return progress;
 }
 

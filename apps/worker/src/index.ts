@@ -1,6 +1,8 @@
 import { Worker, type Job } from "bullmq";
 import { QUEUES, redisConnection, type QueueName } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
+import { enrichProcessor } from "./processors/enrich";
+import { qualifyProcessor } from "./processors/qualify";
 import { searchProcessor } from "./processors/search";
 
 const env = serverEnv();
@@ -14,15 +16,15 @@ const pending = async (job: Job) => {
 /** Procesador por cola. Las que faltan se implementan en las fases 3-5. */
 const processors: Record<QueueName, (job: Job) => Promise<unknown>> = {
   search: searchProcessor,
-  enrich: pending,
-  "ai-qualify": pending,
+  enrich: enrichProcessor,
+  "ai-qualify": qualifyProcessor,
   "send-whatsapp": pending,
   "send-email": pending,
   "classify-reply": pending,
 };
 
 const workers = QUEUES.map((name) => {
-  const w = new Worker(name, processors[name], { connection, concurrency: name === "search" ? 2 : 1 });
+  const w = new Worker(name, processors[name], { connection, concurrency: name === "search" || name === "enrich" ? 2 : 1 });
   w.on("completed", (job) => console.log(`[${name}] ${job.name} ${job.id} listo`));
   w.on("failed", (job, err) =>
     console.error(`[${name}] ${job?.name} ${job?.id} falló (intento ${job?.attemptsMade}):`, err.message),

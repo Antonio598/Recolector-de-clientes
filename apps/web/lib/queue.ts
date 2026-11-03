@@ -1,5 +1,5 @@
 import "server-only";
-import { Queue } from "bullmq";
+import { Queue, type JobsOptions } from "bullmq";
 import { defaultJobOptions, redisConnection, type QueueName } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
 
@@ -17,7 +17,13 @@ export function getQueue(name: QueueName): Queue {
 }
 
 /** Encola un job con id fijo. Si ya hay uno en curso no hace nada; si terminó o falló, lo reemplaza. */
-export async function enqueueUnique(queue: QueueName, name: string, data: object, jobId: string) {
+export async function enqueueUnique(
+  queue: QueueName,
+  name: string,
+  data: object,
+  jobId: string,
+  opts: JobsOptions = {},
+) {
   const q = getQueue(queue);
   const existing = await q.getJob(jobId);
   if (existing) {
@@ -25,7 +31,7 @@ export async function enqueueUnique(queue: QueueName, name: string, data: object
     if (state === "active" || state === "waiting" || state === "delayed" || state === "prioritized") return;
     await existing.remove();
   }
-  await q.add(name, data, { jobId });
+  await q.add(name, data, { ...opts, jobId });
 }
 
 export type JobInfo = {

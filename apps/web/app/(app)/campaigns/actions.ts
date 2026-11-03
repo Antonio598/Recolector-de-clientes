@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   editedNichesSchema,
+  enrichJobId,
+  qualifyJobId,
   newCampaignSchema,
   nichesToQueries,
   planJobId,
@@ -74,4 +76,26 @@ export async function retryRunAction(campaignId: string) {
   await requireRole("admin");
   await enqueueUnique("search", "run", { campaignId }, runJobId(campaignId));
   revalidatePath(`/campaigns/${campaignId}`);
+}
+
+/** Enriquece (WhatsApp, emails, duplicados) los leads que aún no lo están. */
+export async function enrichAction(campaignId: string) {
+  await requireRole("admin");
+  await enqueueUnique("enrich", "enrich", { campaignId }, enrichJobId(campaignId));
+  revalidatePath(`/campaigns/${campaignId}`);
+}
+
+/** Califica con IA los mejores `limit` leads elegibles. Sin reintento automático (no gastar de más). */
+export async function qualifyAction(campaignId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  await requireRole("admin");
+  const limit = Number(formData.get("limit"));
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) return { error: "Escribe cuántos leads calificar" };
+  try {
+    await enqueueUnique("ai-qualify", "qualify", { campaignId, limit }, qualifyJobId(campaignId), { attempts: 1 });
+  } catch (e) {
+    console.error("[campaigns] no se pudo encolar la calificación:", e);
+    return { error: "No hay conexión con Redis" };
+  }
+  revalidatePath(`/campaigns/${campaignId}`);
+  return undefined;
 }

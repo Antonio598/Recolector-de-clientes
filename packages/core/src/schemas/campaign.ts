@@ -45,3 +45,14 @@ export type SearchProgress = { done: number; total: number; requests: number; fo
 
 export const planJobId = (campaignId: string) => `plan-${campaignId}`;
 export const runJobId = (campaignId: string) => `run-${campaignId}`;
+
+// ───────────── jobs de enriquecimiento y calificación ─────────────
+export type EnrichProgress = { done: number; total: number; whatsapp: number; emails: number; discarded: number };
+export type QualifyJobData = { campaignId: string; limit: number };
+export type QualifyProgress = { done: number; total: number; qualified: number; discarded: number; failed: number };
+
+export const enrichJobId = (campaignId: string) => `enrich-${campaignId}`;
+export const qualifyJobId = (campaignId: string) => `qualify-${campaignId}`;
+
+/** Costo aproximado por lead de qualify_and_write (Sonnet 5.5, effort medium). */
+export const QUALIFY_USD_PER_LEAD = 0.01;

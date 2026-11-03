@@ -1,24 +1,32 @@
 import { Worker, type Job } from "bullmq";
 import { QUEUES, redisConnection, type QueueName } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
+import { searchProcessor } from "./processors/search";
 
 const env = serverEnv();
 const connection = redisConnection(env.REDIS_URL);
 
-/** Procesadores por cola. En Fase 1 solo registran el job; se implementan en las fases 2-5. */
-const processors: Record<QueueName, (job: Job) => Promise<unknown>> = Object.fromEntries(
-  QUEUES.map((name) => [
-    name,
-    async (job: Job) => {
-      console.log(`[${name}] job ${job.id} recibido (sin procesador aún)`, job.data);
-      return { skipped: true };
-    },
-  ]),
-) as Record<QueueName, (job: Job) => Promise<unknown>>;
+const pending = async (job: Job) => {
+  console.log(`[${job.queueName}] job ${job.id} recibido (sin procesador aún)`);
+  return { skipped: true };
+};
+
+/** Procesador por cola. Las que faltan se implementan en las fases 3-5. */
+const processors: Record<QueueName, (job: Job) => Promise<unknown>> = {
+  search: searchProcessor,
+  enrich: pending,
+  "ai-qualify": pending,
+  "send-whatsapp": pending,
+  "send-email": pending,
+  "classify-reply": pending,
+};
 
 const workers = QUEUES.map((name) => {
-  const w = new Worker(name, processors[name], { connection, concurrency: 1 });
-  w.on("failed", (job, err) => console.error(`[${name}] job ${job?.id} falló:`, err.message));
+  const w = new Worker(name, processors[name], { connection, concurrency: name === "search" ? 2 : 1 });
+  w.on("completed", (job) => console.log(`[${name}] ${job.name} ${job.id} listo`));
+  w.on("failed", (job, err) =>
+    console.error(`[${name}] ${job?.name} ${job?.id} falló (intento ${job?.attemptsMade}):`, err.message),
+  );
   w.on("error", (err) => console.error(`[${name}] error:`, err.message));
   return w;
 });

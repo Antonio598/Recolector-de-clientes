@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
   transpilePackages: ["@growvibe/core", "@growvibe/db"],
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "bullmq"],
 };
 
 export default nextConfig;

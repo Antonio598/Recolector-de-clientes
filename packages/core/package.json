@@ -8,13 +8,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./env": "./src/env.ts",
-    "./queues": "./src/queues.ts"
+    "./server": "./src/server.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "zod": "^3.24.1"
   }
 }

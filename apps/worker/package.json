@@ -10,9 +10,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@growvibe/core": "workspace:*",
     "@growvibe/db": "workspace:*",
     "bullmq": "^5.34.0",
+    "drizzle-orm": "^0.44.7",
+    "pg": "^8.23.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

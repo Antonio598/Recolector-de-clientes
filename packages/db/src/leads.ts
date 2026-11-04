@@ -164,6 +164,17 @@ export async function queuedMessagesForLeads(db: Db, leadIds: string[]): Promise
 
 // ───────────── eventos ─────────────
 
+/** Errores registrados en leads (envío, calificación, seguimiento), más recientes primero. */
+export async function listRecentErrors(db: Db, limit = 100) {
+  return db
+    .select({ id: events.id, createdAt: events.createdAt, data: events.data, leadId: leads.id, leadName: leads.name })
+    .from(events)
+    .innerJoin(leads, eq(leads.id, events.leadId))
+    .where(eq(events.type, "error"))
+    .orderBy(desc(events.createdAt))
+    .limit(limit);
+}
+
 export async function insertEvent(db: Db, leadId: string, type: string, data?: Record<string, unknown>) {
   await db.insert(events).values({ leadId, type, data: data ?? null });
 }

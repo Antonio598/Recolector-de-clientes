@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Inbox, LayoutDashboard, Megaphone, Menu, Settings, LogOut, X } from "lucide-react";
+import { AlertTriangle, Inbox, LayoutDashboard, Megaphone, Menu, Settings, LogOut, X } from "lucide-react";
 import type { Role } from "@growvibe/core";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
@@ -13,6 +13,7 @@ const NAV: { href: string; label: string; icon: typeof Inbox; roles: Role[] }[] 
   { href: "/", label: "Resumen", icon: LayoutDashboard, roles: ["admin", "vendedor"] },
   { href: "/campaigns", label: "Campañas", icon: Megaphone, roles: ["admin"] },
   { href: "/inbox", label: "Bandeja", icon: Inbox, roles: ["admin", "vendedor"] },
+  { href: "/logs", label: "Errores", icon: AlertTriangle, roles: ["admin"] },
   { href: "/settings", label: "Ajustes", icon: Settings, roles: ["admin"] },
 ];
 

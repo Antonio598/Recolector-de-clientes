@@ -74,6 +74,12 @@ export function effectiveWhatsappLimit(
   return Math.min(configured, WARMUP_START + WARMUP_STEP * days);
 }
 
+/** Pausa automática: más de 10 % de fallos en la última hora, con al menos 5 intentos para no reaccionar a un caso aislado. */
+export function shouldPauseForFailures(sent: number, failed: number): boolean {
+  const attempts = sent + failed;
+  return attempts >= 5 && failed / attempts > 0.1;
+}
+
 /** Retraso aleatorio entre mensajes del mismo canal, en ms. */
 export function randomDelayMs(minSeconds: number, maxSeconds: number): number {
   const lo = Math.max(0, Math.min(minSeconds, maxSeconds));

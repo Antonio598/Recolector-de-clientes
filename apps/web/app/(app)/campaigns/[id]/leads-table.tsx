@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ExternalLink, Star } from "lucide-react";
+import { Check, Download, ExternalLink, Star } from "lucide-react";
 import type { Lead } from "@growvibe/db";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
@@ -58,11 +58,19 @@ export function LeadsTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {chip("Todos", href(campaignId, { giro: niche }), !filter, leads.length)}
         {(Object.keys(FILTERS) as LeadFilter[]).map((f) =>
           chip(FILTERS[f].label, href(campaignId, { giro: niche, estado: f }), filter === f, leads.filter(FILTERS[f].test).length),
         )}
+        <a
+          href={`/campaigns/${campaignId}/export?${new URLSearchParams(
+            Object.entries({ giro: niche, estado: filter }).filter(([, v]) => v) as [string, string][],
+          )}`}
+          className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+        >
+          <Download className="size-3.5" /> Exportar CSV ({filtered.length})
+        </a>
       </div>
       <div className="flex flex-wrap gap-2">
         {chip("Todos los giros", href(campaignId, { estado: filter }), !niche)}

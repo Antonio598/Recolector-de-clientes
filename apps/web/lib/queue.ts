@@ -2,6 +2,7 @@ import "server-only";
 import { Queue, type JobsOptions } from "bullmq";
 import {
   defaultJobOptions,
+  QUEUES,
   redisConnection,
   redisKeys,
   type QueueName,
@@ -64,6 +65,25 @@ export async function getJobInfo(queue: QueueName, jobId: string): Promise<JobIn
     console.error("[queue] no se pudo leer el job:", e);
     return { state: "redis-error", progress: null, attemptsMade: 0, maxAttempts: 0, failedReason: "No hay conexión con Redis" };
   }
+}
+
+export type FailedJob = { queue: QueueName; id: string; name: string; reason: string; at: Date | null; attempts: number };
+
+/** Últimos jobs fallidos de todas las colas (Redis solo conserva los más recientes). */
+export async function recentFailedJobs(perQueue = 20): Promise<FailedJob[]> {
+  const lists = await Promise.all(
+    QUEUES.map(async (queue) =>
+      (await getQueue(queue).getFailed(0, perQueue - 1)).map((j) => ({
+        queue,
+        id: String(j.id),
+        name: j.name,
+        reason: j.failedReason,
+        at: j.finishedOn ? new Date(j.finishedOn) : null,
+        attempts: j.attemptsMade,
+      })),
+    ),
+  );
+  return lists.flat().sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0));
 }
 
 // ───────────── estado de los canales de envío (Redis, compartido con el worker) ─────────────

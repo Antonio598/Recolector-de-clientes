@@ -7,3 +7,4 @@ dist
 .turbo
 supabase/.temp
 supabase/.branches
+*.tsbuildinfo

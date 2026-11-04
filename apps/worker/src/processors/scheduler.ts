@@ -6,6 +6,7 @@ import {
   mexicoClock,
   randomDelayMs,
   redisKeys,
+  shouldPauseForFailures,
   type SchedulerHeartbeat,
   type SendChannel,
 } from "@growvibe/core";
@@ -13,9 +14,6 @@ import { serverEnv } from "@growvibe/core/env";
 import { connectionState } from "@growvibe/core/server";
 import { channelCounters, getDb, getSettings, markMessageScheduled, nextQueuedMessage, type Settings } from "@growvibe/db";
 import { getQueue } from "../lib";
-
-const FAILURE_RATE_PAUSE = 0.1; // >10 % de fallos en la última hora
-const MIN_SAMPLE_FOR_RATE = 5;
 
 async function redis() {
   return getQueue("scheduler").client;
@@ -47,8 +45,8 @@ async function tickChannel(channel: SendChannel, settings: Settings): Promise<st
   const db = getDb();
   const c = await channelCounters(db, channel, BURST_WINDOW_MIN);
 
-  const attempts = c.sentLastHour + c.failedLastHour;
-  if (attempts >= MIN_SAMPLE_FOR_RATE && c.failedLastHour / attempts > FAILURE_RATE_PAUSE) {
+  if (shouldPauseForFailures(c.sentLastHour, c.failedLastHour)) {
+    const attempts = c.sentLastHour + c.failedLastHour;
     await pauseChannel(channel, `Más de 10 % de envíos fallidos en la última hora (${c.failedLastHour}/${attempts})`);
     return "pausado por fallos";
   }

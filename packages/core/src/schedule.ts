@@ -87,6 +87,29 @@ export const redisKeys = {
   pause: (ch: SendChannel) => `gv:pause:${ch}`,
   /** Timestamp (ms) a partir del cual se puede enviar el siguiente mensaje del canal. */
   nextAt: (ch: SendChannel) => `gv:next:${ch}`,
+  /** Último tick del scheduler: permite ver desde la web si el worker está corriendo y qué decidió. */
+  heartbeat: "gv:scheduler:heartbeat",
 };
+
+export type SchedulerHeartbeat = { at: number; whatsapp: string; email: string };
+/** Sin latido en este tiempo, el worker se considera detenido (el tick corre cada 20 s). */
+export const HEARTBEAT_STALE_MS = 90_000;
+
+/** Texto del próximo inicio de la ventana de envío: "hoy a las 09:00", "mañana…", "el lunes…". */
+export function describeNextWindow(
+  s: { sendWindowStart: string; sendDays: number[] },
+  now = new Date(),
+): string {
+  const NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const c = mexicoClock(now);
+  const hour = s.sendWindowStart.slice(0, 5);
+  for (let i = 0; i <= 7; i++) {
+    const day = (c.weekday + i) % 7;
+    if (!s.sendDays.includes(day)) continue;
+    if (i === 0 && c.minutes >= toMinutes(s.sendWindowStart)) continue;
+    return `${i === 0 ? "hoy" : i === 1 ? "mañana" : `el ${NAMES[day]}`} a las ${hour}`;
+  }
+  return "sin días de envío configurados";
+}
 
 export type SendJobData = { messageId: string };

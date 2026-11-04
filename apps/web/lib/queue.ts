@@ -1,6 +1,13 @@
 import "server-only";
 import { Queue, type JobsOptions } from "bullmq";
-import { defaultJobOptions, redisConnection, redisKeys, type QueueName, type SendChannel } from "@growvibe/core";
+import {
+  defaultJobOptions,
+  redisConnection,
+  redisKeys,
+  type QueueName,
+  type SchedulerHeartbeat,
+  type SendChannel,
+} from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
 
 // La web nunca llama a Places/Claude/Evolution/Brevo: solo encola y lee el estado de los jobs.
@@ -67,6 +74,17 @@ export async function channelRuntime(channel: SendChannel): Promise<{ pausedReas
     return { pausedReason: paused, nextAt: next ? Number(next) : null };
   } catch {
     return { pausedReason: "Sin conexión con Redis", nextAt: null };
+  }
+}
+
+/** Último latido del scheduler del worker, o null si nunca ha corrido esta versión. */
+export async function schedulerHeartbeat(): Promise<SchedulerHeartbeat | null> {
+  try {
+    const r = await getQueue("scheduler").client;
+    const raw = await r.get(redisKeys.heartbeat);
+    return raw ? (JSON.parse(raw) as SchedulerHeartbeat) : null;
+  } catch {
+    return null;
   }
 }
 

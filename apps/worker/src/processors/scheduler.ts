@@ -6,6 +6,7 @@ import {
   mexicoClock,
   randomDelayMs,
   redisKeys,
+  type SchedulerHeartbeat,
   type SendChannel,
 } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
@@ -90,12 +91,27 @@ let lastLog = "";
 
 /** Corre cada 20 s (job scheduler de BullMQ): sobrevive a reinicios y no depende de que alguien tenga la app abierta. */
 export async function schedulerProcessor() {
-  const settings = await getSettings(getDb());
-  if (!settings) return { skipped: "sin ajustes" };
-  const result = {
-    whatsapp: await tickChannel("whatsapp", settings),
-    email: await tickChannel("email", settings),
-  };
+  const r = await redis();
+  const beat = (whatsapp: string, email: string) =>
+    r.set(redisKeys.heartbeat, JSON.stringify({ at: Date.now(), whatsapp, email } satisfies SchedulerHeartbeat));
+
+  let result: { whatsapp: string; email: string };
+  try {
+    const settings = await getSettings(getDb());
+    if (!settings) {
+      await beat("sin ajustes", "sin ajustes");
+      return { skipped: "sin ajustes" };
+    }
+    result = {
+      whatsapp: await tickChannel("whatsapp", settings),
+      email: await tickChannel("email", settings),
+    };
+  } catch (e) {
+    const message = `error: ${e instanceof Error ? e.message : String(e)}`;
+    await beat(message, message);
+    throw e;
+  }
+  await beat(result.whatsapp, result.email);
   const log = JSON.stringify(result);
   if (log !== lastLog || log.includes("encolado")) console.log(`[scheduler] ${log}`);
   lastLog = log;

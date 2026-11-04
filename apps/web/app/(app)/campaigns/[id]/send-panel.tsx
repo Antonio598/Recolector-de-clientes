@@ -2,7 +2,9 @@ import { Pause, Play, Send } from "lucide-react";
 import {
   BURST_LIMIT,
   BURST_WINDOW_MIN,
+  describeNextWindow,
   effectiveWhatsappLimit,
+  HEARTBEAT_STALE_MS,
   isInSendWindow,
   mexicoClock,
   type SendChannel,
@@ -12,7 +14,7 @@ import { campaignSendStats, channelCounters, getDb, getSettings, type Campaign }
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { channelRuntime } from "@/lib/queue";
+import { channelRuntime, schedulerHeartbeat } from "@/lib/queue";
 import { launchAction, pauseAction } from "../actions";
 
 const DAY = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -37,6 +39,8 @@ export async function SendPanel({ campaign }: { campaign: Campaign }) {
   const sending = campaign.status === "enviando";
   const inWindow = isInSendWindow(settings);
   const today = mexicoClock().date;
+  const beat = await schedulerHeartbeat();
+  const workerAlive = !!beat && Date.now() - beat.at < HEARTBEAT_STALE_MS;
 
   const rows = await Promise.all(
     channels.map(async (ch) => {
@@ -48,7 +52,7 @@ export async function SendPanel({ campaign }: { campaign: Campaign }) {
       let state: string;
       if (!configured(ch)) state = ch === "email" ? "Brevo no configurado" : "Evolution no configurado";
       else if (rt.pausedReason) state = `Pausado: ${rt.pausedReason}`;
-      else if (!inWindow) state = "Fuera de horario";
+      else if (!inWindow) state = `Fuera de horario: empieza ${describeNextWindow(settings)}`;
       else if (c.today >= limit) state = "Límite de hoy alcanzado";
       else if (c.burst >= BURST_LIMIT) state = `Tope de ${BURST_LIMIT} cada ${BURST_WINDOW_MIN} min, esperando`;
       else if (rt.nextAt && rt.nextAt > Date.now()) state = `Siguiente en ~${Math.ceil((rt.nextAt - Date.now()) / 1000)} s`;
@@ -71,6 +75,21 @@ export async function SendPanel({ campaign }: { campaign: Campaign }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {sending && !workerAlive && (
+          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <strong>El worker no está enviando.</strong>{" "}
+            {beat
+              ? `Su último latido fue hace ${Math.round((Date.now() - beat.at) / 60_000)} min.`
+              : "No hay señal de esta versión del worker."}{" "}
+            Revisa en Easypanel que la app con <code>APP=worker</code> esté desplegada con la última versión y corriendo.
+          </p>
+        )}
+        {sending && !inWindow && (
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Ahora estás fuera del horario de envío. Los mensajes saldrán solos {describeNextWindow(settings)} (hora de
+            México).
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           {rows.map(({ ch, c, limit, state, s }) => (
             <div key={ch} className="rounded-lg border border-slate-200 p-3 text-sm">
@@ -87,6 +106,7 @@ export async function SendPanel({ campaign }: { campaign: Campaign }) {
                 {s.cancelado ? ` · ${s.cancelado} cancelados` : ""}
               </p>
               {sending && <p className="mt-1 text-xs text-slate-500">{state}</p>}
+              {sending && workerAlive && beat && <p className="mt-0.5 text-xs text-slate-400">Worker: {beat[ch]}</p>}
             </div>
           ))}
         </div>

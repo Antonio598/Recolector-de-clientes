@@ -3,7 +3,7 @@ import { QUEUES, redisConnection, type QueueName } from "@growvibe/core";
 import { serverEnv } from "@growvibe/core/env";
 import { enrichProcessor } from "./processors/enrich";
 import { qualifyProcessor } from "./processors/qualify";
-import { classifyProcessor, followUpProcessor } from "./processors/replies";
+import { classifyProcessor } from "./processors/replies";
 import { schedulerProcessor } from "./processors/scheduler";
 import { searchProcessor } from "./processors/search";
 import { sendEmailProcessor, sendWhatsappProcessor } from "./processors/send";
@@ -20,8 +20,8 @@ const processors: Record<QueueName, (job: Job) => Promise<unknown>> = {
   "send-whatsapp": sendWhatsappProcessor,
   "send-email": sendEmailProcessor,
   "classify-reply": classifyProcessor,
-  // La cola scheduler lleva dos jobs recurrentes: el tick de envíos y los seguimientos.
-  scheduler: (job: Job) => (job.name === "followups" ? followUpProcessor() : schedulerProcessor()),
+  // Un job "followups" pendiente de una versión anterior se ignora (ya no hay seguimientos automáticos).
+  scheduler: (job: Job) => (job.name === "tick" ? schedulerProcessor() : Promise.resolve({ skipped: job.name })),
 };
 
 const workers = QUEUES.map((name) => {
@@ -42,12 +42,8 @@ await getQueue("scheduler").upsertJobScheduler(
   { every: 20_000 },
   { name: "tick", data: {}, opts: { attempts: 1, removeOnComplete: true, removeOnFail: 50 } },
 );
-// Seguimientos a 3 días hábiles: revisa cada hora.
-await getQueue("scheduler").upsertJobScheduler(
-  "followups-hourly",
-  { every: 60 * 60_000 },
-  { name: "followups", data: {}, opts: { attempts: 1, removeOnComplete: 20, removeOnFail: 50 } },
-);
+// Sin seguimientos automáticos: un solo mensaje por negocio. Borra el scheduler de versiones anteriores.
+await getQueue("scheduler").removeJobScheduler("followups-hourly");
 console.log(`[worker] conectado a Redis (${connection.host}:${connection.port}); colas: ${QUEUES.join(", ")}`);
 
 async function shutdown(signal: string) {

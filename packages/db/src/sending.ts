@@ -6,8 +6,9 @@ type Channel = "whatsapp" | "email";
 const SENT = ["enviado", "entregado", "leido"] as const;
 
 /**
- * Siguiente mensaje a enviar del canal: campaña "enviando", lead calificado, mensaje en cola sin programar
- * (o programado hace más de 30 min y nunca enviado: el job se perdió). Primero los de mejor score.
+ * Siguiente mensaje a enviar del canal: campaña "enviando", lead calificado que NUNCA ha recibido un mensaje,
+ * mensaje en cola sin programar (o programado hace más de 30 min y nunca enviado: el job se perdió).
+ * Primero los de mejor score. Regla: un solo mensaje automático por negocio.
  */
 export async function nextQueuedMessage(db: Db, channel: Channel) {
   const [row] = await db
@@ -21,7 +22,8 @@ export async function nextQueuedMessage(db: Db, channel: Channel) {
         eq(messages.channel, channel),
         eq(messages.direction, "out"),
         eq(messages.status, "en_cola"),
-        inArray(leads.status, ["calificado", "contactado"]),
+        eq(leads.status, "calificado"),
+        sql`not exists (select 1 from growvibe.messages s where s.lead_id = ${leads.id} and s.direction = 'out' and s.status in ('enviado','entregado','leido'))`,
         channel === "whatsapp" ? eq(leads.hasWhatsapp, true) : sql`${leads.email} is not null`,
         or(isNull(messages.scheduledFor), lt(messages.scheduledFor, sql`now() - interval '30 minutes'`)),
       ),
@@ -67,7 +69,7 @@ export async function getSendContext(db: Db, messageId: string) {
   return row;
 }
 
-/** ¿El contacto está en bajas o ya recibió un mensaje desde OTRO lead (otra campaña)? */
+/** ¿El contacto está en bajas o ya recibió un mensaje (de este lead o de otro con el mismo teléfono/email)? */
 export async function contactBlockReason(
   db: Db,
   leadId: string,
@@ -95,7 +97,6 @@ export async function contactBlockReason(
     .innerJoin(leads, eq(leads.id, messages.leadId))
     .where(
       and(
-        sql`${leads.id} <> ${leadId}`,
         eq(messages.direction, "out"),
         inArray(messages.status, [...SENT]),
         or(
@@ -105,7 +106,7 @@ export async function contactBlockReason(
       ),
     )
     .limit(1);
-  return other.length ? "Ya fue contactado desde otra campaña" : null;
+  return other.length ? "Ya se le envió un mensaje antes (un solo mensaje por negocio)" : null;
 }
 
 export async function markMessageSent(db: Db, id: string, leadId: string, providerId: string | null, channel: Channel) {
@@ -113,6 +114,19 @@ export async function markMessageSent(db: Db, id: string, leadId: string, provid
     await tx.update(messages).set({ status: "enviado", providerId, sentAt: new Date() }).where(eq(messages.id, id));
     await tx.update(leads).set({ status: "contactado" }).where(and(eq(leads.id, leadId), eq(leads.status, "calificado")));
     await tx.insert(events).values({ leadId, type: "enviado", data: { channel, messageId: id } });
+    // Un solo mensaje automático por negocio: lo demás en cola (p. ej. el email si salió el WhatsApp) se cancela.
+    const rest = await tx
+      .update(messages)
+      .set({ status: "cancelado" })
+      .where(and(eq(messages.leadId, leadId), eq(messages.direction, "out"), eq(messages.status, "en_cola")))
+      .returning({ id: messages.id, channel: messages.channel });
+    if (rest.length) {
+      await tx.insert(events).values({
+        leadId,
+        type: "cancelado",
+        data: { reason: "Ya se le envió un mensaje: un solo mensaje por negocio", channels: rest.map((r) => r.channel) },
+      });
+    }
   });
 }
 

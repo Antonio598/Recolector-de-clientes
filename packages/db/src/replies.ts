@@ -191,42 +191,6 @@ export async function assignLead(db: Db, leadId: string, to: string | null) {
   await db.insert(events).values({ leadId, type: "asignado", data: { to } });
 }
 
-// ───────────── seguimiento a 3 días hábiles ─────────────
-
-/**
- * Leads contactados, sin ninguna respuesta, con exactamente un mensaje enviado en el canal
- * y nada en cola en ese canal. Se filtra después por días hábiles.
- */
-export async function followUpCandidates(db: Db, limit: number) {
-  const res = await db.execute(sql`
-    select m.id as "messageId", m.lead_id as "leadId", m.channel, m.subject, m.body, m.sent_at as "sentAt"
-    from growvibe.messages m
-    join growvibe.leads l on l.id = m.lead_id
-    join growvibe.campaigns c on c.id = l.campaign_id
-    where m.direction = 'out' and m.status in ('enviado','entregado','leido')
-      and l.status = 'contactado' and c.status = 'enviando'
-      and m.sent_at < now() - interval '3 days'
-      and not exists (select 1 from growvibe.messages i where i.lead_id = m.lead_id and i.direction = 'in')
-      and (select count(*) from growvibe.messages o where o.lead_id = m.lead_id and o.channel = m.channel and o.direction = 'out'
-           and o.status <> 'cancelado') = 1
-    order by m.sent_at
-    limit ${limit}
-  `);
-  return res.rows as unknown as {
-    messageId: string;
-    leadId: string;
-    channel: Channel;
-    subject: string | null;
-    body: string;
-    sentAt: Date;
-  }[];
-}
-
-export async function queueFollowUp(db: Db, leadId: string, channel: Channel, subject: string | null, body: string) {
-  await db.insert(messages).values({ leadId, channel, direction: "out", subject, body, status: "en_cola" });
-  await db.insert(events).values({ leadId, type: "seguimiento", data: { channel } });
-}
-
 /** Resumen para el dashboard. */
 export async function dashboardStats(db: Db) {
   const [row] = await db

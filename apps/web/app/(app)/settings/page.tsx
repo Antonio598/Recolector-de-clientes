@@ -9,6 +9,7 @@ import { resumeChannelAction } from "./channel-actions";
 import { OptOutForm } from "./opt-out-form";
 import { WhatsappQr } from "./whatsapp-qr";
 import { WebhookButton } from "./webhook-button";
+import { WebhookUrl } from "./webhook-url";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
@@ -35,6 +36,11 @@ export default async function SettingsPage() {
     ? await findWebhook({ url: env.EVOLUTION_API_URL, apiKey: env.EVOLUTION_API_KEY, instance: env.EVOLUTION_INSTANCE }).catch(() => null)
     : null;
   const webhookOk = !!webhook?.url?.includes("/api/webhooks/evolution/") && webhook.enabled !== false;
+  const appUrl = env.APP_URL.replace(/\/$/, "");
+  const webhookUrl =
+    env.EVOLUTION_WEBHOOK_SECRET && env.EVOLUTION_WEBHOOK_SECRET.length >= 16 && appUrl.startsWith("https://")
+      ? `${appUrl}/api/webhooks/evolution/${env.EVOLUTION_WEBHOOK_SECRET}`
+      : null;
   const brevoOk = !!(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL && env.UNSUBSCRIBE_SECRET);
 
   return (
@@ -79,6 +85,14 @@ export default async function SettingsPage() {
               )}
             </p>
             {!webhookOk && <WebhookButton />}
+            {webhookUrl ? (
+              <WebhookUrl url={webhookUrl} />
+            ) : (
+              <p className="text-xs text-amber-700">
+                Para generar la URL del webhook define <code>APP_URL</code> (tu dominio https, ahora: {env.APP_URL}) y{" "}
+                <code>EVOLUTION_WEBHOOK_SECRET</code> (16+ caracteres aleatorios) en la app web.
+              </p>
+            )}
             <WhatsappQr />
           </CardContent>
         </Card>

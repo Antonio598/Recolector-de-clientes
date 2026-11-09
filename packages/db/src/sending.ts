@@ -6,9 +6,11 @@ type Channel = "whatsapp" | "email";
 const SENT = ["enviado", "entregado", "leido"] as const;
 
 /**
- * Siguiente mensaje a enviar del canal: campaña "enviando", lead calificado que NUNCA ha recibido un mensaje,
- * mensaje en cola sin programar (o programado hace más de 30 min y nunca enviado: el job se perdió).
- * Primero los de mejor score. Regla: un solo mensaje automático por negocio.
+ * Siguiente mensaje a enviar del canal: campaña "enviando", mensaje en cola sin programar (o programado hace
+ * más de 30 min y nunca enviado: el job se perdió). Primero los de mejor score. Solo dos casos:
+ * - primer mensaje: lead calificado que NUNCA ha recibido nada;
+ * - seguimiento: lead contactado (no respondió ni pidió baja) con exactamente un mensaje enviado,
+ *   y el mensaje en cola se creó después de ese envío.
  */
 export async function nextQueuedMessage(db: Db, channel: Channel) {
   const [row] = await db
@@ -22,8 +24,17 @@ export async function nextQueuedMessage(db: Db, channel: Channel) {
         eq(messages.channel, channel),
         eq(messages.direction, "out"),
         eq(messages.status, "en_cola"),
-        eq(leads.status, "calificado"),
-        sql`not exists (select 1 from growvibe.messages s where s.lead_id = ${leads.id} and s.direction = 'out' and s.status in ('enviado','entregado','leido'))`,
+        or(
+          and(
+            eq(leads.status, "calificado"),
+            sql`not exists (select 1 from growvibe.messages s where s.lead_id = ${leads.id} and s.direction = 'out' and s.status in ('enviado','entregado','leido'))`,
+          ),
+          and(
+            eq(leads.status, "contactado"),
+            sql`(select count(*) from growvibe.messages s where s.lead_id = ${leads.id} and s.direction = 'out' and s.status in ('enviado','entregado','leido')) = 1`,
+            sql`${messages.createdAt} > (select max(s.sent_at) from growvibe.messages s where s.lead_id = ${leads.id} and s.direction = 'out' and s.status in ('enviado','entregado','leido'))`,
+          ),
+        ),
         channel === "whatsapp" ? eq(leads.hasWhatsapp, true) : sql`${leads.email} is not null`,
         or(isNull(messages.scheduledFor), lt(messages.scheduledFor, sql`now() - interval '30 minutes'`)),
       ),
@@ -69,13 +80,18 @@ export async function getSendContext(db: Db, messageId: string) {
   return row;
 }
 
-/** ¿El contacto está en bajas o ya recibió un mensaje (de este lead o de otro con el mismo teléfono/email)? */
+/**
+ * ¿Se debe bloquear este envío? Bajas siempre. Si no es respuesta manual:
+ * - el teléfono/email ya recibió un mensaje desde OTRO lead (otra campaña);
+ * - este lead ya recibió dos (primero + seguimiento), o uno y el mensaje es anterior a ese envío
+ *   (p. ej. el email que quedó en cola cuando salió el WhatsApp).
+ */
 export async function contactBlockReason(
   db: Db,
   leadId: string,
   phone: string | null,
   email: string | null,
-  opts: { onlyOptOut?: boolean } = {},
+  opts: { onlyOptOut?: boolean; messageCreatedAt?: Date | null } = {},
 ): Promise<string | null> {
   const lowerEmail = email?.toLowerCase() ?? null;
   const oo = await db
@@ -97,6 +113,7 @@ export async function contactBlockReason(
     .innerJoin(leads, eq(leads.id, messages.leadId))
     .where(
       and(
+        sql`${leads.id} <> ${leadId}`,
         eq(messages.direction, "out"),
         inArray(messages.status, [...SENT]),
         or(
@@ -106,7 +123,17 @@ export async function contactBlockReason(
       ),
     )
     .limit(1);
-  return other.length ? "Ya se le envió un mensaje antes (un solo mensaje por negocio)" : null;
+  if (other.length) return "Ya fue contactado desde otra campaña";
+
+  const [own] = await db
+    .select({ n: sql<number>`count(*)::int`, last: sql<string | null>`max(${messages.sentAt})` })
+    .from(messages)
+    .where(and(eq(messages.leadId, leadId), eq(messages.direction, "out"), inArray(messages.status, [...SENT])));
+  if ((own?.n ?? 0) >= 2) return "Ya recibió su mensaje y su seguimiento";
+  if ((own?.n ?? 0) === 1 && opts.messageCreatedAt && own?.last && opts.messageCreatedAt <= new Date(own.last)) {
+    return "Ya se le envió un mensaje por otro canal";
+  }
+  return null;
 }
 
 export async function markMessageSent(db: Db, id: string, leadId: string, providerId: string | null, channel: Channel) {

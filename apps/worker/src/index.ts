@@ -1,9 +1,10 @@
 import { Worker, type Job } from "bullmq";
-import { QUEUES, redisConnection, type QueueName } from "@growvibe/core";
+import { classifyJobId, QUEUES, redisConnection, type QueueName } from "@growvibe/core";
+import { getDb, unclassifiedIncoming } from "@growvibe/db";
 import { serverEnv } from "@growvibe/core/env";
 import { enrichProcessor } from "./processors/enrich";
 import { qualifyProcessor } from "./processors/qualify";
-import { classifyProcessor } from "./processors/replies";
+import { classifyProcessor, followUpProcessor } from "./processors/replies";
 import { schedulerProcessor } from "./processors/scheduler";
 import { searchProcessor } from "./processors/search";
 import { sendEmailProcessor, sendWhatsappProcessor } from "./processors/send";
@@ -20,15 +21,19 @@ const processors: Record<QueueName, (job: Job) => Promise<unknown>> = {
   "send-whatsapp": sendWhatsappProcessor,
   "send-email": sendEmailProcessor,
   "classify-reply": classifyProcessor,
-  // Un job "followups" pendiente de una versión anterior se ignora (ya no hay seguimientos automáticos).
-  scheduler: (job: Job) => (job.name === "tick" ? schedulerProcessor() : Promise.resolve({ skipped: job.name })),
+  // La cola scheduler lleva dos jobs recurrentes: el tick de envíos y los seguimientos.
+  scheduler: (job: Job) => (job.name === "followups" ? followUpProcessor() : schedulerProcessor()),
 };
 
 const workers = QUEUES.map((name) => {
   const w = new Worker(name, processors[name], { connection, concurrency: name === "search" || name === "enrich" || name === "classify-reply" ? 2 : 1 });
   if (name !== "scheduler") w.on("completed", (job) => console.log(`[${name}] ${job.name} ${job.id} listo`));
   w.on("failed", (job, err) =>
-    console.error(`[${name}] ${job?.name} ${job?.id} falló (intento ${job?.attemptsMade}):`, err.message),
+    console.error(
+      `[${name}] ${job?.name} ${job?.id} falló (intento ${job?.attemptsMade}):`,
+      err.message,
+      err.cause instanceof Error ? `→ causa: ${err.cause.message}` : "",
+    ),
   );
   w.on("error", (err) => console.error(`[${name}] error:`, err.message));
   return w;
@@ -42,8 +47,16 @@ await getQueue("scheduler").upsertJobScheduler(
   { every: 20_000 },
   { name: "tick", data: {}, opts: { attempts: 1, removeOnComplete: true, removeOnFail: 50 } },
 );
-// Sin seguimientos automáticos: un solo mensaje por negocio. Borra el scheduler de versiones anteriores.
-await getQueue("scheduler").removeJobScheduler("followups-hourly");
+// Seguimientos a 3 días hábiles: revisa cada hora.
+await getQueue("scheduler").upsertJobScheduler(
+  "followups-hourly",
+  { every: 60 * 60_000 },
+  { name: "followups", data: {}, opts: { attempts: 1, removeOnComplete: 20, removeOnFail: 50 } },
+);
+// Respuestas guardadas sin clasificar (p. ej. recuperadas de Evolution): se clasifican al arrancar.
+for (const messageId of await unclassifiedIncoming(getDb())) {
+  await getQueue("classify-reply").add("classify", { messageId }, { jobId: classifyJobId(messageId) });
+}
 console.log(`[worker] conectado a Redis (${connection.host}:${connection.port}); colas: ${QUEUES.join(", ")}`);
 
 async function shutdown(signal: string) {

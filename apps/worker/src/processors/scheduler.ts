@@ -105,7 +105,9 @@ export async function schedulerProcessor() {
       email: await tickChannel("email", settings),
     };
   } catch (e) {
-    const message = `error: ${e instanceof Error ? e.message : String(e)}`;
+    // Drizzle envuelve el error de Postgres: la causa (conexión cortada, timeout…) es lo útil.
+    const cause = e instanceof Error && e.cause instanceof Error ? ` → ${e.cause.message}` : "";
+    const message = `error: ${e instanceof Error ? e.message.split("\n")[0]!.slice(0, 120) : String(e)}${cause}`;
     await beat(message, message);
     throw e;
   }

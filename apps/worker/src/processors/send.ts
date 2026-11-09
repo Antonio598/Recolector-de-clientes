@@ -29,7 +29,15 @@ async function prepare(job: Job<SendJobData>) {
     await unscheduleMessage(db, job.data.messageId);
     return null;
   }
-  const block = await contactBlockReason(db, ctx.lead.id, ctx.lead.phoneE164, ctx.lead.email, { onlyOptOut: isReply });
+  // Un lead que respondió, pidió baja o no le interesa ya no recibe mensajes automáticos.
+  if (!isReply && !["calificado", "contactado"].includes(ctx.lead.status)) {
+    await cancelMessage(db, ctx.message.id, ctx.lead.id, `El lead está en estado "${ctx.lead.status}"`);
+    return null;
+  }
+  const block = await contactBlockReason(db, ctx.lead.id, ctx.lead.phoneE164, ctx.lead.email, {
+    onlyOptOut: isReply,
+    messageCreatedAt: ctx.message.createdAt,
+  });
   if (block) {
     await cancelMessage(db, ctx.message.id, ctx.lead.id, block);
     return null;

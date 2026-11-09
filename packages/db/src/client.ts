@@ -10,7 +10,14 @@ const g = globalThis as unknown as { __growvibeDb?: Db };
 
 export function getDb(): Db {
   if (!g.__growvibeDb) {
-    const pool = new pg.Pool({ connectionString: serverEnv().DATABASE_URL, max: 10 });
+    // keepAlive + idleTimeout: evita usar conexiones que el pooler del servidor ya cerró por inactividad.
+    const pool = new pg.Pool({
+      connectionString: serverEnv().DATABASE_URL,
+      max: 10,
+      keepAlive: true,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+    });
     pool.on("error", (err) => console.error("[db] error del pool:", err.message));
     g.__growvibeDb = drizzle(pool, { schema });
   }

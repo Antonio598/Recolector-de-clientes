@@ -6,3 +6,4 @@ export * from "./clients/brevo";
 export * from "./prompts/plan-search";
 export * from "./prompts/qualify";
 export * from "./prompts/classify-reply";
+export * from "./prompts/follow-up";
